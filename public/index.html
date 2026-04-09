@@ -769,7 +769,7 @@ function animateHighlight(events, finalH, finalA, hn, an) {
       // Update progress bar
       const pct = Math.round((ev.minute / totalMinutes) * 100);
       if (progress) progress.style.width = pct + '%';
-      if (status) status.textContent = ev.minute + ''';
+      if (status) status.textContent = ev.minute + "'";
 
       // Update score if goal
       if (ev.type === 'goal') {
