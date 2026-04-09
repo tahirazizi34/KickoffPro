@@ -128,6 +128,65 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .goal-item:last-child{border-bottom:none}
 .goal-min{color:var(--acc);min-width:28px;font-weight:600}
 @media(max-width:500px){.mm{grid-template-columns:1fr 72px 1fr}.sc{font-size:18px}.tn{font-size:12px}}
+
+/* ── HIGHLIGHT ANIMATION ─────────────────────────────────────── */
+.hl-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.95);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.hl-modal{background:#0d0f14;border:1px solid rgba(255,255,255,.1);border-radius:16px;width:100%;max-width:500px;overflow:hidden;position:relative}
+.hl-close{position:absolute;top:12px;right:12px;background:rgba(255,255,255,.1);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px;z-index:10;display:flex;align-items:center;justify-content:center}
+.hl-close:hover{background:rgba(255,255,255,.2)}
+/* Header scoreboard */
+.hl-board{background:linear-gradient(135deg,#0f172a,#1e293b);padding:24px 20px 20px;text-align:center;position:relative;overflow:hidden}
+.hl-board::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#3b82f6,#8b5cf6,#ef4444)}
+.hl-competition{font-size:10px;color:#64748b;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;font-weight:600}
+.hl-teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin-bottom:14px}
+.hl-team{display:flex;flex-direction:column;align-items:center;gap:8px}
+.hl-team-name{font-size:13px;font-weight:700;color:#f0f2f7}
+.hl-crest-wrap{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:4px}
+.hl-crest-wrap img{width:48px;height:48px;object-fit:contain}
+.hl-score-display{text-align:center}
+.hl-score-nums{font-size:44px;font-weight:800;color:#fff;letter-spacing:4px;line-height:1;font-variant-numeric:tabular-nums}
+.hl-score-nums span{transition:all .3s}
+.hl-score-nums span.popped{animation:scorePop .4s ease-out}
+@keyframes scorePop{0%{transform:scale(1)}40%{transform:scale(1.5);color:#22c55e}100%{transform:scale(1)}}
+.hl-ft{font-size:11px;color:#64748b;margin-top:6px;letter-spacing:1px;text-transform:uppercase}
+/* Progress bar */
+.hl-progress-wrap{padding:0 20px;margin-bottom:0}
+.hl-progress-bar{height:3px;background:rgba(255,255,255,.08);border-radius:20px;overflow:hidden;margin-bottom:0}
+.hl-progress-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:20px;width:0%;transition:width .6s ease}
+/* Timeline */
+.hl-timeline{padding:16px 20px;max-height:280px;overflow-y:auto;scrollbar-width:none}
+.hl-timeline::-webkit-scrollbar{display:none}
+.hl-event{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);opacity:0;transform:translateY(12px);transition:all .4s ease}
+.hl-event.hl-event:last-child{border-bottom:none}
+.hl-event.visible{opacity:1;transform:translateY(0)}
+.hl-event.home-side{flex-direction:row}
+.hl-event.away-side{flex-direction:row-reverse}
+.hl-min-badge{background:rgba(59,130,246,.15);color:#93c5fd;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;min-width:38px;text-align:center;flex-shrink:0}
+.hl-min-badge.card-yellow{background:rgba(245,158,11,.2);color:#fcd34d}
+.hl-min-badge.card-red{background:rgba(239,68,68,.2);color:#fca5a5}
+.hl-event-icon{font-size:20px;flex-shrink:0}
+.hl-event-info{flex:1}
+.hl-event-player{font-size:13px;font-weight:600;color:#f0f2f7}
+.hl-event-team{font-size:11px;color:#64748b;margin-top:1px}
+.hl-event.away-side .hl-event-info{text-align:right}
+/* Score ticker inside timeline */
+.hl-score-tick{text-align:center;padding:8px 0;opacity:0;transform:scale(.8);transition:all .4s}
+.hl-score-tick.visible{opacity:1;transform:scale(1)}
+.hl-score-tick-inner{display:inline-flex;align-items:center;gap:8px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:20px;padding:4px 14px}
+.hl-score-tick-inner span{font-size:14px;font-weight:800;color:#22c55e}
+/* Replay & controls */
+.hl-controls{padding:14px 20px;border-top:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.hl-speed{display:flex;gap:6px}
+.hl-speed-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#94a3b8;padding:5px 12px;border-radius:20px;font-size:11px;cursor:pointer;transition:all .15s}
+.hl-speed-btn.active{background:var(--acc);border-color:var(--acc);color:#fff}
+.hl-replay-btn{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:#93c5fd;padding:7px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.hl-replay-btn:hover{background:rgba(59,130,246,.25)}
+/* No events placeholder */
+.hl-no-events{text-align:center;padding:30px 20px;color:#475569;font-size:13px}
+/* Highlight button on match card */
+.hl-btn{display:inline-flex;align-items:center;gap:5px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);color:#c4b5fd;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;cursor:pointer;transition:all .15s;margin-left:6px}
+.hl-btn:hover{background:rgba(139,92,246,.28);border-color:rgba(139,92,246,.5)}
+.hl-btn svg{width:10px;height:10px;fill:currentColor}
 </style>
 </head>
 <body>
@@ -389,6 +448,10 @@ function matchCard(m) {
     footerHtml = `<div class="mi"><div class="vr"><span>HT: ${htScore??'-'} – ${atScore??'-'}</span></div></div>`;
   }
 
+  const hlBtn = fin ? `<button class="hl-btn" onclick="event.stopPropagation();playHighlight(${m.id})">
+    <svg viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9"/></svg> Highlights
+  </button>` : '';
+
   return `<div class="mc ${liv?'live-match':''}" onclick="openModal(${m.id})">
     <div class="mm">
       <div class="team">
@@ -411,7 +474,7 @@ function matchCard(m) {
         </div>
       </div>
     </div>
-    ${footerHtml}
+    ${fin ? `<div class="mi"><div class="vr"><span>FT · ${fmtDate(m.utcDate)}</span></div><div>${hlBtn}</div></div>` : footerHtml}
   </div>`;
 }
 
@@ -578,6 +641,225 @@ function openModal(matchId) {
     </div>
   </div>`;
   document.body.appendChild(ov);
+}
+
+
+// ─── HIGHLIGHT ANIMATION ENGINE ──────────────────────────────────
+let hlSpeed = 1200; // ms per event
+let hlTimer = null;
+
+function playHighlight(matchId) {
+  const m = Object.values(allMatches).flat().find(x => x.id === matchId);
+  if (!m) return;
+
+  const ht  = m.homeTeam, at = m.awayTeam;
+  const hn  = ht?.shortName || ht?.name || 'Home';
+  const an  = at?.shortName || at?.name || 'Away';
+  const hS  = m.score?.fullTime?.home ?? 0;
+  const aS  = m.score?.fullTime?.away ?? 0;
+  const league = LEAGUES.find(l => l.id === activeLeague)?.label || '';
+
+  // Build event list: goals + cards sorted by minute
+  const events = [];
+  (m.goals || []).forEach(g => {
+    events.push({
+      type:   'goal',
+      minute: g.minute || 0,
+      player: g.scorer?.name || 'Unknown',
+      team:   g.team?.id === ht?.id ? 'home' : 'away',
+      teamName: g.team?.id === ht?.id ? hn : an,
+    });
+  });
+  (m.bookings || []).forEach(b => {
+    events.push({
+      type:   b.card === 'RED_CARD' ? 'red' : 'yellow',
+      minute: b.minute || 0,
+      player: b.player?.name || 'Unknown',
+      team:   b.team?.id === ht?.id ? 'home' : 'away',
+      teamName: b.team?.id === ht?.id ? hn : an,
+    });
+  });
+  events.sort((a, b) => a.minute - b.minute);
+
+  // Build the overlay HTML
+  const ov = document.createElement('div');
+  ov.className = 'hl-overlay';
+  ov.id = 'hlOverlay';
+  ov.onclick = e => { if (e.target === ov) closeHighlight(); };
+
+  ov.innerHTML = `
+    <div class="hl-modal" id="hlModal">
+      <button class="hl-close" onclick="closeHighlight()">×</button>
+
+      <!-- Scoreboard -->
+      <div class="hl-board">
+        <div class="hl-competition">${league} · ${fmtDate(m.utcDate)}</div>
+        <div class="hl-teams">
+          <div class="hl-team">
+            <div class="hl-crest-wrap">
+              ${ht?.crest ? `<img src="${ht.crest}" onerror="this.outerHTML='<span style=font-size:22px>${ini(hn)}</span>'">` : `<span style="font-size:22px;font-weight:700;color:#94a3b8">${ini(hn)}</span>`}
+            </div>
+            <div class="hl-team-name">${hn}</div>
+          </div>
+          <div class="hl-score-display">
+            <div class="hl-score-nums">
+              <span id="hlHomeScore">0</span>
+              <span style="color:#334155;font-size:32px"> – </span>
+              <span id="hlAwayScore">0</span>
+            </div>
+            <div class="hl-ft" id="hlStatus">Kick off</div>
+          </div>
+          <div class="hl-team">
+            <div class="hl-crest-wrap">
+              ${at?.crest ? `<img src="${at.crest}" onerror="this.outerHTML='<span style=font-size:22px>${ini(an)}</span>'">` : `<span style="font-size:22px;font-weight:700;color:#94a3b8">${ini(an)}</span>`}
+            </div>
+            <div class="hl-team-name">${an}</div>
+          </div>
+        </div>
+        <!-- Progress bar -->
+        <div class="hl-progress-wrap">
+          <div class="hl-progress-bar"><div class="hl-progress-fill" id="hlProgress"></div></div>
+        </div>
+      </div>
+
+      <!-- Event timeline -->
+      <div class="hl-timeline" id="hlTimeline">
+        ${events.length === 0
+          ? `<div class="hl-no-events">⚽ No detailed events available for this match</div>`
+          : `<div style="text-align:center;padding:16px 0 8px;font-size:11px;color:#475569;letter-spacing:1px;text-transform:uppercase">Match events loading...</div>`
+        }
+      </div>
+
+      <!-- Controls -->
+      <div class="hl-controls">
+        <div class="hl-speed">
+          <button class="hl-speed-btn active" id="speed1x" onclick="setHlSpeed(1200,this)">1×</button>
+          <button class="hl-speed-btn" id="speed2x" onclick="setHlSpeed(600,this)">2×</button>
+          <button class="hl-speed-btn" id="speed3x" onclick="setHlSpeed(300,this)">3×</button>
+        </div>
+        <button class="hl-replay-btn" onclick="replayHighlight(${matchId})">↺ Replay</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(ov);
+
+  // Start animation after brief delay
+  if (events.length > 0) {
+    setTimeout(() => animateHighlight(events, hS, aS, hn, an), 600);
+  }
+}
+
+function animateHighlight(events, finalH, finalA, hn, an) {
+  clearTimeout(hlTimer);
+  const timeline = document.getElementById('hlTimeline');
+  const progress = document.getElementById('hlProgress');
+  const status   = document.getElementById('hlStatus');
+  if (!timeline) return;
+
+  // Clear loading text
+  timeline.innerHTML = '';
+
+  let curH = 0, curA = 0;
+  const totalMinutes = Math.max(...events.map(e => e.minute), 90);
+
+  events.forEach((ev, i) => {
+    hlTimer = setTimeout(() => {
+      if (!document.getElementById('hlOverlay')) return;
+
+      // Update progress bar
+      const pct = Math.round((ev.minute / totalMinutes) * 100);
+      if (progress) progress.style.width = pct + '%';
+      if (status) status.textContent = ev.minute + ''';
+
+      // Update score if goal
+      if (ev.type === 'goal') {
+        if (ev.team === 'home') curH++;
+        else curA++;
+        updateHlScore(curH, curA, ev.team);
+      }
+
+      // Build event row
+      const isHome = ev.team === 'home';
+      const icon = ev.type === 'goal' ? '⚽' : ev.type === 'red' ? '🟥' : '🟨';
+      const minClass = ev.type === 'red' ? 'card-red' : ev.type === 'yellow' ? 'card-yellow' : '';
+
+      // Score ticker for goals
+      if (ev.type === 'goal') {
+        const tick = document.createElement('div');
+        tick.className = 'hl-score-tick';
+        tick.innerHTML = `<div class="hl-score-tick-inner"><span>${curH} – ${curA}</span></div>`;
+        timeline.appendChild(tick);
+        requestAnimationFrame(() => requestAnimationFrame(() => tick.classList.add('visible')));
+      }
+
+      // Event row
+      const row = document.createElement('div');
+      row.className = `hl-event ${isHome ? 'home-side' : 'away-side'}`;
+      row.innerHTML = `
+        <div class="hl-min-badge ${minClass}">${ev.minute}'</div>
+        <div class="hl-event-icon">${icon}</div>
+        <div class="hl-event-info">
+          <div class="hl-event-player">${ev.player}</div>
+          <div class="hl-event-team">${ev.teamName}</div>
+        </div>`;
+      timeline.appendChild(row);
+      requestAnimationFrame(() => requestAnimationFrame(() => row.classList.add('visible')));
+
+      // Scroll to bottom
+      timeline.scrollTop = timeline.scrollHeight;
+
+      // On last event — show full time
+      if (i === events.length - 1) {
+        setTimeout(() => {
+          if (!document.getElementById('hlOverlay')) return;
+          updateHlScore(finalH, finalA, null);
+          if (progress) progress.style.width = '100%';
+          if (status) status.textContent = 'Full Time';
+
+          // Final result banner
+          const result = document.createElement('div');
+          result.className = 'hl-score-tick';
+          const resultText = finalH > finalA ? hn + ' win!' : finalA > finalH ? an + ' win!' : 'Draw!';
+          const resultColor = finalH > finalA ? '#3b82f6' : finalA > finalH ? '#ef4444' : '#f59e0b';
+          result.innerHTML = `<div style="text-align:center;padding:12px 0">
+            <div style="font-size:22px;font-weight:800;color:${resultColor}">${resultText}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:4px">Final score: ${finalH} – ${finalA}</div>
+          </div>`;
+          timeline.appendChild(result);
+          requestAnimationFrame(() => requestAnimationFrame(() => result.classList.add('visible')));
+          timeline.scrollTop = timeline.scrollHeight;
+        }, hlSpeed);
+      }
+
+    }, i * hlSpeed + 400);
+  });
+}
+
+function updateHlScore(h, a, scoringTeam) {
+  const hEl = document.getElementById('hlHomeScore');
+  const aEl = document.getElementById('hlAwayScore');
+  if (!hEl || !aEl) return;
+  hEl.textContent = h;
+  aEl.textContent = a;
+  if (scoringTeam === 'home') { hEl.classList.remove('popped'); void hEl.offsetWidth; hEl.classList.add('popped'); }
+  if (scoringTeam === 'away') { aEl.classList.remove('popped'); void aEl.offsetWidth; aEl.classList.add('popped'); }
+}
+
+function setHlSpeed(ms, btn) {
+  hlSpeed = ms;
+  document.querySelectorAll('.hl-speed-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function replayHighlight(matchId) {
+  closeHighlight();
+  setTimeout(() => playHighlight(matchId), 150);
+}
+
+function closeHighlight() {
+  clearTimeout(hlTimer);
+  const ov = document.getElementById('hlOverlay');
+  if (ov) ov.remove();
 }
 
 // ─── SEARCH ───────────────────────────────────────────────────────
