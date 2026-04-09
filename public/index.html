@@ -448,7 +448,7 @@ function matchCard(m) {
     footerHtml = `<div class="mi"><div class="vr"><span>HT: ${htScore??'-'} – ${atScore??'-'}</span></div></div>`;
   }
 
-  const hlBtn = fin ? `<button class="hl-btn" onclick="event.stopPropagation();playHighlight(${m.id})">
+  const hlBtn = fin ? `<button class="hl-btn" data-mid="${m.id}" onclick="event.stopPropagation();playHighlight(parseInt(this.dataset.mid))">
     <svg viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9"/></svg> Highlights
   </button>` : '';
 
@@ -648,9 +648,106 @@ function openModal(matchId) {
 let hlSpeed = 1200; // ms per event
 let hlTimer = null;
 
+// ── Simulated match story generator ──────────────────────────────
+function generateSimEvents(hS, aS, hn, an) {
+  const usedMins = new Set([45]); // reserve 45 for halftime
+
+  function randMin(lo, hi) {
+    let m, tries = 0;
+    do { m = lo + Math.floor(Math.random() * (hi - lo + 1)); tries++; }
+    while (usedMins.has(m) && tries < 30);
+    usedMins.add(m);
+    return m;
+  }
+
+  const goalPhrases = [
+    'Clinical finish!', 'Back of the net!', 'What a strike!',
+    'Cool and composed!', 'Tap-in from close range!', 'Header from the corner!',
+    'Brilliant solo effort!', 'Into the bottom corner!', 'Unstoppable!',
+    'The goalkeeper had no chance!', 'Penalty converted!', 'Stunning volley!'
+  ];
+
+  const narrativePool = [
+    hn + ' pressing high up the pitch',
+    an + ' dangerous on the counter',
+    hn + ' hit the crossbar!',
+    an + ' chance cleared off the line!',
+    hn + ' dominating possession',
+    an + ' inches wide with a long-range effort!',
+    hn + ' appealing for a penalty',
+    an + ' winning the midfield battle',
+    'Brilliant save from the goalkeeper!',
+    'VAR check — no foul',
+    hn + ' building from the back',
+    an + ' struggling to create chances',
+  ];
+
+  const events = [];
+
+  // Goals — spread realistically across the 90 minutes
+  const goalSlots = [
+    [6,42], [47,65], [55,75], [67,85], [80,93], [10,35]
+  ];
+  const allGoalTeams = [
+    ...Array(hS).fill('home'),
+    ...Array(aS).fill('away')
+  ].sort(() => Math.random() - 0.5);
+
+  allGoalTeams.forEach((team, i) => {
+    const [lo, hi] = goalSlots[i % goalSlots.length];
+    const min = randMin(lo, hi);
+    events.push({
+      type: 'goal', minute: min, simulated: true,
+      player: 'Goal!',
+      team,
+      teamName: team === 'home' ? hn : an,
+      phrase: goalPhrases[Math.floor(Math.random() * goalPhrases.length)],
+    });
+  });
+
+  // Narrative events — always add some regardless of score
+  const narrativeCount = Math.max(3, 6 - (hS + aS));
+  const shuffled = narrativePool.sort(() => Math.random() - 0.5);
+  for (let i = 0; i < narrativeCount; i++) {
+    const min = randMin(5, 90);
+    const isHome = shuffled[i % shuffled.length].startsWith(hn);
+    events.push({
+      type: 'narrative', minute: min, simulated: true,
+      player: shuffled[i % shuffled.length],
+      team: isHome ? 'home' : 'away',
+      teamName: isHome ? hn : an,
+    });
+  }
+
+  // 1-2 yellow cards
+  const cards = Math.floor(Math.random() * 2) + 1;
+  for (let i = 0; i < cards; i++) {
+    events.push({
+      type: 'yellow', minute: randMin(18, 87), simulated: true,
+      player: 'Yellow card',
+      team: Math.random() > 0.5 ? 'home' : 'away',
+      teamName: Math.random() > 0.5 ? hn : an,
+    });
+  }
+
+  // Halftime divider
+  events.push({ type: 'halftime', minute: 45, player: 'Half Time', team: 'neutral', teamName: '' });
+
+  // Sort by minute; halftime always slots exactly at 45
+  events.sort((a, b) => {
+    if (a.type === 'halftime' && b.type !== 'halftime') return (a.minute + 0.1) - b.minute;
+    if (b.type === 'halftime' && a.type !== 'halftime') return a.minute - (b.minute + 0.1);
+    return a.minute - b.minute;
+  });
+
+  return events;
+}
+
 function playHighlight(matchId) {
+  console.log('playHighlight called with id:', matchId, typeof matchId);
   const m = Object.values(allMatches).flat().find(x => x.id === matchId);
-  if (!m) return;
+  console.log('match found:', m ? m.homeTeam?.name + ' vs ' + m.awayTeam?.name : 'NOT FOUND');
+  if (!m) { alert('Match data not found. Please refresh and try again.'); return; }
 
   const ht  = m.homeTeam, at = m.awayTeam;
   const hn  = ht?.shortName || ht?.name || 'Home';
@@ -659,13 +756,14 @@ function playHighlight(matchId) {
   const aS  = m.score?.fullTime?.away ?? 0;
   const league = LEAGUES.find(l => l.id === activeLeague)?.label || '';
 
-  // Build event list: goals + cards sorted by minute
-  const events = [];
+  // Build event list from real API data first
+  let events = [];
+  let isSimulated = false;
   (m.goals || []).forEach(g => {
     events.push({
       type:   'goal',
       minute: g.minute || 0,
-      player: g.scorer?.name || 'Unknown',
+      player: g.scorer?.name || 'Goal!',
       team:   g.team?.id === ht?.id ? 'home' : 'away',
       teamName: g.team?.id === ht?.id ? hn : an,
     });
@@ -674,12 +772,18 @@ function playHighlight(matchId) {
     events.push({
       type:   b.card === 'RED_CARD' ? 'red' : 'yellow',
       minute: b.minute || 0,
-      player: b.player?.name || 'Unknown',
+      player: b.player?.name || 'Card',
       team:   b.team?.id === ht?.id ? 'home' : 'away',
       teamName: b.team?.id === ht?.id ? hn : an,
     });
   });
   events.sort((a, b) => a.minute - b.minute);
+
+  // No real events — generate simulated match story
+  if (events.length === 0) {
+    events = generateSimEvents(hS, aS, hn, an);
+    isSimulated = true;
+  }
 
   // Build the overlay HTML
   const ov = document.createElement('div');
@@ -691,13 +795,14 @@ function playHighlight(matchId) {
     <div class="hl-modal" id="hlModal">
       <button class="hl-close" onclick="closeHighlight()">×</button>
 
-      <!-- Scoreboard -->
       <div class="hl-board">
         <div class="hl-competition">${league} · ${fmtDate(m.utcDate)}</div>
         <div class="hl-teams">
           <div class="hl-team">
             <div class="hl-crest-wrap">
-              ${ht?.crest ? `<img src="${ht.crest}" onerror="this.outerHTML='<span style=font-size:22px>${ini(hn)}</span>'">` : `<span style="font-size:22px;font-weight:700;color:#94a3b8">${ini(hn)}</span>`}
+              ${ht?.crest
+                ? `<img src="${ht.crest}" style="width:48px;height:48px;object-fit:contain" onerror="this.outerHTML='<span style=font-size:26px;font-weight:700;color:#94a3b8>${ini(hn)}</span>'">`
+                : `<span style="font-size:26px;font-weight:700;color:#94a3b8">${ini(hn)}</span>`}
             </div>
             <div class="hl-team-name">${hn}</div>
           </div>
@@ -711,42 +816,36 @@ function playHighlight(matchId) {
           </div>
           <div class="hl-team">
             <div class="hl-crest-wrap">
-              ${at?.crest ? `<img src="${at.crest}" onerror="this.outerHTML='<span style=font-size:22px>${ini(an)}</span>'">` : `<span style="font-size:22px;font-weight:700;color:#94a3b8">${ini(an)}</span>`}
+              ${at?.crest
+                ? `<img src="${at.crest}" style="width:48px;height:48px;object-fit:contain" onerror="this.outerHTML='<span style=font-size:26px;font-weight:700;color:#94a3b8>${ini(an)}</span>'">`
+                : `<span style="font-size:26px;font-weight:700;color:#94a3b8">${ini(an)}</span>`}
             </div>
             <div class="hl-team-name">${an}</div>
           </div>
         </div>
-        <!-- Progress bar -->
         <div class="hl-progress-wrap">
           <div class="hl-progress-bar"><div class="hl-progress-fill" id="hlProgress"></div></div>
         </div>
       </div>
 
-      <!-- Event timeline -->
       <div class="hl-timeline" id="hlTimeline">
-        ${events.length === 0
-          ? `<div class="hl-no-events">⚽ No detailed events available for this match</div>`
-          : `<div style="text-align:center;padding:16px 0 8px;font-size:11px;color:#475569;letter-spacing:1px;text-transform:uppercase">Match events loading...</div>`
-        }
+        <div style="text-align:center;padding:14px 0 6px;font-size:11px;color:#475569;letter-spacing:1px;text-transform:uppercase">
+          ${isSimulated ? '⚡ Simulated match story' : 'Match events loading...'}
+        </div>
       </div>
 
-      <!-- Controls -->
       <div class="hl-controls">
         <div class="hl-speed">
           <button class="hl-speed-btn active" id="speed1x" onclick="setHlSpeed(1200,this)">1×</button>
           <button class="hl-speed-btn" id="speed2x" onclick="setHlSpeed(600,this)">2×</button>
           <button class="hl-speed-btn" id="speed3x" onclick="setHlSpeed(300,this)">3×</button>
         </div>
-        <button class="hl-replay-btn" onclick="replayHighlight(${matchId})">↺ Replay</button>
+        <button class="hl-replay-btn" data-mid="${matchId}" onclick="replayHighlight(parseInt(this.dataset.mid))">↺ Replay</button>
       </div>
     </div>`;
 
   document.body.appendChild(ov);
-
-  // Start animation after brief delay
-  if (events.length > 0) {
-    setTimeout(() => animateHighlight(events, hS, aS, hn, an), 600);
-  }
+  setTimeout(() => animateHighlight(events, hS, aS, hn, an), 700);
 }
 
 function animateHighlight(events, finalH, finalA, hn, an) {
@@ -756,59 +855,108 @@ function animateHighlight(events, finalH, finalA, hn, an) {
   const status   = document.getElementById('hlStatus');
   if (!timeline) return;
 
-  // Clear loading text
-  timeline.innerHTML = '';
-
   let curH = 0, curA = 0;
-  const totalMinutes = Math.max(...events.map(e => e.minute), 90);
+  const maxMin = Math.max(...events.map(e => e.minute), 90);
+
+  const timers = [];
 
   events.forEach((ev, i) => {
-    hlTimer = setTimeout(() => {
+    const t = setTimeout(() => {
       if (!document.getElementById('hlOverlay')) return;
 
-      // Update progress bar
-      const pct = Math.round((ev.minute / totalMinutes) * 100);
+      // Progress bar + status
+      const pct = Math.min(100, Math.round((ev.minute / maxMin) * 100));
       if (progress) progress.style.width = pct + '%';
-      if (status) status.textContent = ev.minute + "'";
 
-      // Update score if goal
+      // ── HALFTIME ──────────────────────────────────────────────
+      if (ev.type === 'halftime') {
+        if (status) status.textContent = 'Half Time';
+        const ht_div = document.createElement('div');
+        ht_div.className = 'hl-score-tick';
+        ht_div.innerHTML = `<div style="text-align:center;padding:6px 0">
+          <div style="font-size:11px;font-weight:700;color:#475569;letter-spacing:2px;text-transform:uppercase">─── Half Time ───</div>
+          <div style="font-size:13px;color:#64748b;margin-top:3px">${hn} ${curH} – ${curA} ${an}</div>
+        </div>`;
+        timeline.appendChild(ht_div);
+        requestAnimationFrame(() => requestAnimationFrame(() => ht_div.classList.add('visible')));
+        timeline.scrollTop = timeline.scrollHeight;
+        return;
+      }
+
+      if (status) status.textContent = ev.minute + "\'";
+
+      // ── GOAL ──────────────────────────────────────────────────
       if (ev.type === 'goal') {
         if (ev.team === 'home') curH++;
         else curA++;
         updateHlScore(curH, curA, ev.team);
-      }
 
-      // Build event row
-      const isHome = ev.team === 'home';
-      const icon = ev.type === 'goal' ? '⚽' : ev.type === 'red' ? '🟥' : '🟨';
-      const minClass = ev.type === 'red' ? 'card-red' : ev.type === 'yellow' ? 'card-yellow' : '';
-
-      // Score ticker for goals
-      if (ev.type === 'goal') {
+        // Score ticker
         const tick = document.createElement('div');
         tick.className = 'hl-score-tick';
-        tick.innerHTML = `<div class="hl-score-tick-inner"><span>${curH} – ${curA}</span></div>`;
+        const teamColor = ev.team === 'home' ? '#3b82f6' : '#ef4444';
+        tick.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0">
+          <div style="font-size:11px;color:${teamColor};font-weight:700;letter-spacing:1px">⚽ GOAL! ${ev.teamName.toUpperCase()}</div>
+          <div class="hl-score-tick-inner"><span style="color:#22c55e;font-size:16px;font-weight:800">${curH} – ${curA}</span></div>
+          ${ev.phrase ? `<div style="font-size:11px;color:#64748b;font-style:italic">"${ev.phrase}"</div>` : ''}
+        </div>`;
         timeline.appendChild(tick);
         requestAnimationFrame(() => requestAnimationFrame(() => tick.classList.add('visible')));
       }
 
-      // Event row
-      const row = document.createElement('div');
-      row.className = `hl-event ${isHome ? 'home-side' : 'away-side'}`;
-      row.innerHTML = `
-        <div class="hl-min-badge ${minClass}">${ev.minute}'</div>
-        <div class="hl-event-icon">${icon}</div>
-        <div class="hl-event-info">
-          <div class="hl-event-player">${ev.player}</div>
-          <div class="hl-event-team">${ev.teamName}</div>
-        </div>`;
-      timeline.appendChild(row);
-      requestAnimationFrame(() => requestAnimationFrame(() => row.classList.add('visible')));
+      // ── NARRATIVE (simulated near-miss/story event) ────────────
+      if (ev.type === 'narrative') {
+        const row = document.createElement('div');
+        row.className = 'hl-event ' + (ev.team === 'home' ? 'home-side' : 'away-side');
+        row.innerHTML = `
+          <div class="hl-min-badge" style="background:rgba(100,116,139,.15);color:#64748b">${ev.minute}'</div>
+          <div class="hl-event-icon">🎯</div>
+          <div class="hl-event-info">
+            <div class="hl-event-player" style="color:#94a3b8;font-style:italic">${ev.player}</div>
+          </div>`;
+        timeline.appendChild(row);
+        requestAnimationFrame(() => requestAnimationFrame(() => row.classList.add('visible')));
+        timeline.scrollTop = timeline.scrollHeight;
+        return;
+      }
 
-      // Scroll to bottom
+      // ── CARD ──────────────────────────────────────────────────
+      if (ev.type === 'yellow' || ev.type === 'red') {
+        const isHome = ev.team === 'home';
+        const minClass = ev.type === 'red' ? 'card-red' : 'card-yellow';
+        const icon = ev.type === 'red' ? '🟥' : '🟨';
+        const row = document.createElement('div');
+        row.className = 'hl-event ' + (isHome ? 'home-side' : 'away-side');
+        row.innerHTML = `
+          <div class="hl-min-badge ${minClass}">${ev.minute}'</div>
+          <div class="hl-event-icon">${icon}</div>
+          <div class="hl-event-info">
+            <div class="hl-event-player">${ev.player}</div>
+            <div class="hl-event-team">${ev.teamName}</div>
+          </div>`;
+        timeline.appendChild(row);
+        requestAnimationFrame(() => requestAnimationFrame(() => row.classList.add('visible')));
+      }
+
+      // ── REGULAR GOAL ROW (real data) ──────────────────────────
+      if (ev.type === 'goal' && !ev.simulated) {
+        const isHome = ev.team === 'home';
+        const row = document.createElement('div');
+        row.className = 'hl-event ' + (isHome ? 'home-side' : 'away-side');
+        row.innerHTML = `
+          <div class="hl-min-badge">${ev.minute}'</div>
+          <div class="hl-event-icon">⚽</div>
+          <div class="hl-event-info">
+            <div class="hl-event-player">${ev.player}</div>
+            <div class="hl-event-team">${ev.teamName}</div>
+          </div>`;
+        timeline.appendChild(row);
+        requestAnimationFrame(() => requestAnimationFrame(() => row.classList.add('visible')));
+      }
+
       timeline.scrollTop = timeline.scrollHeight;
 
-      // On last event — show full time
+      // ── FINAL EVENT — show result ──────────────────────────────
       if (i === events.length - 1) {
         setTimeout(() => {
           if (!document.getElementById('hlOverlay')) return;
@@ -816,14 +964,16 @@ function animateHighlight(events, finalH, finalA, hn, an) {
           if (progress) progress.style.width = '100%';
           if (status) status.textContent = 'Full Time';
 
-          // Final result banner
+          const resultText  = finalH > finalA ? hn + ' win!' : finalA > finalH ? an + ' win!' : "It's a draw!";
+          const resultColor = finalH > finalA ? '#3b82f6' : finalA > finalH ? '#ef4444' : '#f59e0b';
+          const resultEmoji = finalH > finalA ? '🏆' : finalA > finalH ? '🏆' : '🤝';
+
           const result = document.createElement('div');
           result.className = 'hl-score-tick';
-          const resultText = finalH > finalA ? hn + ' win!' : finalA > finalH ? an + ' win!' : 'Draw!';
-          const resultColor = finalH > finalA ? '#3b82f6' : finalA > finalH ? '#ef4444' : '#f59e0b';
-          result.innerHTML = `<div style="text-align:center;padding:12px 0">
-            <div style="font-size:22px;font-weight:800;color:${resultColor}">${resultText}</div>
-            <div style="font-size:12px;color:#64748b;margin-top:4px">Final score: ${finalH} – ${finalA}</div>
+          result.innerHTML = `<div style="text-align:center;padding:16px 0 8px">
+            <div style="font-size:28px;margin-bottom:6px">${resultEmoji}</div>
+            <div style="font-size:20px;font-weight:800;color:${resultColor}">${resultText}</div>
+            <div style="font-size:13px;color:#64748b;margin-top:4px">Final: ${hn} ${finalH} – ${finalA} ${an}</div>
           </div>`;
           timeline.appendChild(result);
           requestAnimationFrame(() => requestAnimationFrame(() => result.classList.add('visible')));
@@ -831,7 +981,8 @@ function animateHighlight(events, finalH, finalA, hn, an) {
         }, hlSpeed);
       }
 
-    }, i * hlSpeed + 400);
+    }, i * hlSpeed + 500);
+    timers.push(t);
   });
 }
 
