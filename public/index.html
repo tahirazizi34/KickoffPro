@@ -227,7 +227,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ─── CONFIG ──────────────────────────────────────────────────────
-const REFRESH_INTERVAL = 60;
+const REFRESH_INTERVAL      = 10;   // full data refresh every 10s (fits free tier: 6 req/min)
+const LIVE_REFRESH_INTERVAL = 5;    // when live games active, refresh every 5s
+const CACHE_LIVE_TTL        = 4000; // live match cache expires after 4s
+
 
 const LEAGUES = [
   { id:'PL',  label:'Premier League',   emoji:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', hasStandings:true  },
@@ -240,13 +243,15 @@ const LEAGUES = [
 ];
 
 const cache    = {};
-const CACHE_TTL = 55000;
+const CACHE_TTL = 9000; // 9s — just under the 10s refresh interval
 
 let activeLeague   = 'PL';
 let activeTab      = 'matches';
 let activeFilter   = 'all';
 let countdownVal   = REFRESH_INTERVAL;
 let countdownTimer = null;
+let liveClockTimer = null;  // ticks the in-play minute counter locally every 60s
+let liveStartTimes = {};    // tracks when each live match started for clock calc
 let allMatches     = {};
 let allStandings   = {};
 let allScorers     = {};
@@ -359,43 +364,132 @@ async function refreshLeague(lid, silent=false) {
     allMatches[lid]   = matches;
     allStandings[lid] = standings;
     allScorers[lid]   = scorers;
+
+    // Sync live clock — update stored minute from fresh API data
+    (matches || []).filter(isLive).forEach(m => {
+      liveStartTimes[m.id] = {
+        apiMinute: m.minute || 0,
+        recordedAt: Date.now(),
+        status: m.status,
+      };
+    });
+    // Clear times for matches no longer live
+    Object.keys(liveStartTimes).forEach(id => {
+      const m = (matches || []).find(x => x.id === parseInt(id));
+      if (!m || !isLive(m)) delete liveStartTimes[id];
+    });
+
     updateTimestamp();
-    if (activeLeague===lid) renderCurrentTab();
+    if (activeLeague === lid) renderCurrentTab();
   } catch(e) {
     if (!silent) showError(e.message);
-    else console.warn('Background load failed for '+lid, e.message);
+    else console.warn('Background load failed for ' + lid, e.message);
   }
 }
 
 function updateTimestamp() {
   const el = document.getElementById('lastUpdated');
-  if (el) el.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  if (el) el.textContent = 'Updated ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 
-// ─── COUNTDOWN ───────────────────────────────────────────────────
+// ─── COUNTDOWN & LIVE CLOCK ──────────────────────────────────────
+function hasLiveMatches() {
+  return (allMatches[activeLeague] || []).some(isLive);
+}
+
+function getRefreshInterval() {
+  // Use faster refresh when live games are on
+  return hasLiveMatches() ? LIVE_REFRESH_INTERVAL : REFRESH_INTERVAL;
+}
+
 function startCountdown() {
   clearInterval(countdownTimer);
-  countdownVal = REFRESH_INTERVAL;
+  const interval = getRefreshInterval();
+  countdownVal = interval;
   const cd = document.getElementById('countdown');
-  countdownTimer = setInterval(()=>{
+
+  // Update status label to show live mode
+  updateLiveStatus();
+
+  countdownTimer = setInterval(() => {
     countdownVal--;
-    if (cd) cd.textContent = countdownVal+'s';
-    if (countdownVal<=0) {
-      clearInterval(countdownTimer);
-      if (cd) cd.textContent='';
-      delete cache[`/competitions/${activeLeague}/matches`];
-      refreshLeague(activeLeague,true).then(startCountdown);
+    if (cd) {
+      cd.textContent = countdownVal + 's';
+      cd.style.color = hasLiveMatches() ? '#ef4444' : 'var(--acc)';
     }
-  },1000);
+    if (countdownVal <= 0) {
+      clearInterval(countdownTimer);
+      if (cd) cd.textContent = '';
+      // Bust cache for this league's matches only
+      Object.keys(cache).forEach(k => {
+        if (k.includes(`/competitions/${activeLeague}/matches`)) delete cache[k];
+      });
+      refreshLeague(activeLeague, true).then(startCountdown);
+    }
+  }, 1000);
+
+  // Start the local live clock ticker
+  startLiveClock();
+}
+
+function updateLiveStatus() {
+  const el = document.getElementById('lastUpdated');
+  if (!el) return;
+  const live = (allMatches[activeLeague] || []).filter(isLive);
+  if (live.length > 0) {
+    el.innerHTML = `<span style="color:#ef4444;font-weight:600">🔴 ${live.length} LIVE</span> · ${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}`;
+  } else {
+    el.textContent = 'Updated ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  }
+}
+
+// ── Local live match clock ─────────────────────────────────────
+// Ticks the displayed minute counter every second locally
+// so it feels real-time between actual API refreshes
+function startLiveClock() {
+  clearInterval(liveClockTimer);
+  const liveMatches = (allMatches[activeLeague] || []).filter(isLive);
+  if (!liveMatches.length) return;
+
+  // Record the API-reported minute + local timestamp for each live match
+  liveMatches.forEach(m => {
+    if (!liveStartTimes[m.id]) {
+      liveStartTimes[m.id] = {
+        apiMinute: m.minute || 0,
+        recordedAt: Date.now(),
+        status: m.status,
+      };
+    }
+  });
+
+  // Every second, update the displayed minute on live match cards
+  liveClockTimer = setInterval(() => {
+    updateLiveStatus();
+    liveMatches.forEach(m => {
+      const info = liveStartTimes[m.id];
+      if (!info) return;
+      const elapsed = Math.floor((Date.now() - info.recordedAt) / 1000);
+      const displayMin = Math.min(info.apiMinute + elapsed, m.status === 'PAUSED' ? info.apiMinute : 90);
+
+      // Update the live badge minute in the DOM without re-rendering
+      const card = document.querySelector(`[data-matchid="${m.id}"]`);
+      if (card) {
+        const badge = card.querySelector('.live-minute-text');
+        if (badge) badge.textContent = displayMin + "'";
+      }
+    });
+  }, 1000);
 }
 
 function manualRefresh() {
   clearInterval(countdownTimer);
+  clearInterval(liveClockTimer);
+  liveStartTimes = {};
   const btn = document.getElementById('refreshBtn');
-  if (btn) btn.textContent='↻ ...';
-  Object.keys(cache).forEach(k=>{ if(k.includes(activeLeague)) delete cache[k]; });
-  refreshLeague(activeLeague,false).then(()=>{
-    if (btn) btn.textContent='↻ Refresh';
+  if (btn) btn.textContent = '↻ ...';
+  Object.keys(cache).forEach(k => { if (k.includes(activeLeague)) delete cache[k]; });
+  refreshLeague(activeLeague, false).then(() => {
+    if (btn) btn.textContent = '↻ Refresh';
     startCountdown();
   });
 }
@@ -453,14 +547,21 @@ function matchCard(m) {
   }
   if (liv) {
     const htScore = m.score?.halfTime?.home, atScore = m.score?.halfTime?.away;
-    footerHtml = `<div class="mi"><div class="vr"><span>HT: ${htScore??'-'} – ${atScore??'-'}</span></div></div>`;
+    const htInfo = (htScore != null) ? `HT: ${htScore} – ${atScore}` : '';
+    footerHtml = `<div class="mi">
+      <div class="vr">
+        ${htInfo ? `<span>${htInfo}</span>` : ''}
+        <span style="color:#ef4444;font-weight:600">● LIVE</span>
+      </div>
+      <div style="font-size:10px;color:var(--mut)">Updates every ${LIVE_REFRESH_INTERVAL}s</div>
+    </div>`;
   }
 
   const hlBtn = fin ? `<button class="hl-btn" data-mid="${m.id}" onclick="event.stopPropagation();playHighlight(parseInt(this.dataset.mid))">
     <svg viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9"/></svg> Highlights
   </button>` : '';
 
-  return `<div class="mc ${liv?'live-match':''}" onclick="openModal(${m.id})">
+  return `<div class="mc ${liv?'live-match':''}" data-matchid="${m.id}" onclick="openModal(${m.id})">
     <div class="mm">
       <div class="team">
         ${crestImg(ht)}
@@ -470,9 +571,9 @@ function matchCard(m) {
         </div>
       </div>
       <div class="sb">
-        ${liv?`<div class="live-badge"><span class="live-badge-dot"></span>${m.minute||''}′</div>`:''}
+        ${liv?`<div class="live-badge"><span class="live-badge-dot"></span><span class="live-minute-text">${m.minute||''}′</span></div>`:''}
         <div class="sc" style="${sch?'font-size:13px;color:var(--mut);letter-spacing:0':''}">${sch?'vs':sc}</div>
-        <div class="st">${sch?fmtKO(m.utcDate):statusLabel(m)+' · '+fmtDate(m.utcDate)}</div>
+        <div class="st">${sch?fmtKO(m.utcDate):liv?`<span class="live-minute-text">${m.minute||''}′</span> · ${fmtDate(m.utcDate)}`:statusLabel(m)+' · '+fmtDate(m.utcDate)}</div>
       </div>
       <div class="team aw">
         ${crestImg(at)}
@@ -1081,6 +1182,8 @@ function switchSubTab(id,el) {
 function switchLeague(id,el) {
   activeLeague=id; activeTab='matches'; activeFilter='all';
   clearInterval(countdownTimer);
+  clearInterval(liveClockTimer);
+  liveStartTimes = {};
   document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
   buildSubTabs();
